@@ -1,0 +1,80 @@
+
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Environment variables and secrets
+# Ignore the base .env file and environment-specific variants
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Logs and debug files
+logs/
+*.log
+ npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage and test output
+coverage/
+.nyc_output/
+test-results/
+
+# Build output
+dist/
+build/
+out/
+.next/
+.nuxt/
+.cache/
+.parcel-cache/
+.vite/
+
+# Uploads and generated server files
+uploads/
+public/uploads/
+tmp/
+temp/
+
+# Frontend tooling
+.eslintcache
+*.tsbuildinfo
+
+# IDE and editor files
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/*.code-snippets
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Optional local databases and generated assets
+*.sqlite
+*.sqlite3
+*.db
+
+# Miscellaneous
+.vercel/
+.netlify/
