@@ -1,27 +1,24 @@
 import dotenv from "dotenv";
 dotenv.config({ path: "./.env" });
 import connectDB from "./db/index.js";
-import express from "express";
+import app from "./app.js";
 
-const app = express();
-const PORT = process.env.PORT || 8000;
+connectDB()
+  .then(() => {
+    const PORT = process.env.PORT || 8000;
+    app.listen(PORT, () => {
+      console.log(`Server is running on http://localhost:${PORT}`);
+    });
+    app.on("error", (error) => {
+      console.error("Error starting the server:", error);
+      process.exit(1); // Exit the process with an error code
+    });
+  })
+  .catch((error) => {
+    console.error("Error connecting to the database:", error);
+    process.exit(1); // Exit the process with an error code
+  });
 
-// Connect to MongoDB
-connectDB();
 
-// Middleware to parse JSON requests
-app.use(express.json());
+  
 
-// Define a simple route for testing
-app.get("/", (req, res) => {
-  res.send("Hello, World!");
-});
-app.get("/test", (req, res) => {
-  res.send("Hello, test!");
-});
-
-
-// Start the server
-app.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
-});

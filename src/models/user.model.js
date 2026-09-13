@@ -1,0 +1,99 @@
+import mongoose from "mongoose";
+import aggregatePaginate from "mongoose-aggregate-paginate-v2";
+import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
+
+const userSchema = new mongoose.Schema({
+    username: {
+        type: String,
+        required: true,
+        unique: true,
+        trim: true,
+        index: true,
+        lowercase: true,
+    },
+    email: {
+        type: String,
+        required: true,
+        unique: true,
+        lowercase: true,
+    },
+    fullname: {
+        type: String,
+        required: true,
+        trim: true,
+        index: true,
+    },
+    avatar: {
+        type: String,
+        default: "",
+    },
+    coverImage: {
+        type: String,
+        default: "",
+    },
+    watchHistory:[
+        {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Video",
+        }
+    ],
+    password: {
+        type: String,
+        required: [true,"Password is required"],
+    },
+    refreshToken: {
+        type: String,
+        default: "",
+    },
+    
+}, { timestamps: true });
+
+
+
+userSchema.pre("save", async function (next) {
+    if (!this.isModified("password")) {
+        return next();
+    }
+  try{
+    const salt = await bcrypt.genSalt(10);
+    this.password = await bcrypt.hash(this.password, salt);
+    next();
+  } catch (error) {
+    next(error);    
+  }
+});
+userSchema.methods.comparePassword = async function (candidatePassword) {
+    return await bcrypt.compare(candidatePassword, this.password);
+};
+
+userSchema.methods.generateAccessToken = function () {
+    const payload = { 
+        _id: this._id,
+        username: this.username,
+        email: this.email,
+        fullname: this.fullname,
+
+     };
+    const accessToken = jwt.sign(payload, process.env.AccessTokenSecret, 
+    {
+        expiresIn: process.env.AccessTokenExpiresIn,
+    });
+    return accessToken;
+};
+
+userSchema.methods.generateRefreshToken = function () {
+    const payload = { 
+        _id: this._id,
+      
+     };
+    const refreshToken = jwt.sign(payload, process.env.RefreshTokenSecret, 
+    {
+        expiresIn: process.env.RefreshTokenExpiresIn,
+    });
+    return refreshToken;
+};
+
+const User = mongoose.model("User", userSchema);
+
+export default User;
