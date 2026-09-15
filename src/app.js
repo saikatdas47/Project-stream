@@ -23,12 +23,10 @@ app.use(cors({
 }));
 app.use(cookieParser());
 
-app.get("/", (req, res) => {
-  res.send("Welcome to the Stremars API!");
-});
 
-app.get("/health", (req, res) => {
-    res.status(200).json({ status: "OK", message: "Server is healthy" });
-});
+//Routers
+import userRouter from "./routes/user.router.js";
+app.use("/api/v1/user/",userRouter);
+
 
 export default app;
