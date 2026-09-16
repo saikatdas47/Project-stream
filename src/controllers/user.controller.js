@@ -1,6 +1,5 @@
 import asyncHandler from '../utils/asyncHandler.js';
 import User from '../models/user.model.js';
-import AsyncHandler from '../utils/asyncHandler.js';
 import {ApiError} from '../utils/apiError.js';
 import {uploadOnCloudinary} from '../utils/cloudinary.js';
 import {ApiResponse} from '../utils/apiResponse.js';
@@ -25,18 +24,18 @@ const userRegister = asyncHandler(async (req, res) => {
 
     //Deal with avatar and coverImage if they are provided (Files are uploaded using multer)
 
-    const avaterLocalPath = req.files?.avater?.[0]?.path;
+    const avatarLocalPath = req.files?.avatar?.[0]?.path;
     const coverImageLocalPath = req.files?.coverImage?.[0]?.path;
 
-    if (!avaterLocalPath) { //avater must be provided but coverImage is optional. so coverimgae should handle null value.
-        throw new ApiError(400, "Avatar Image are required");
+    if (!avatarLocalPath) {
+        throw new ApiError(400, "Avatar image is required");
     }
 
     //Upload avatar and coverImage to cloudinary
-    const avater = await uploadOnCloudinary(avaterLocalPath);
-    const coverImage = coverImageLocalPath ? await uploadOnCloudinary(coverImageLocalPath) : null;
-
-    if(!coverImage){throw new ApiError(400, "Cover Image is required");} //avater er localpath check korsi but cover er kori nai, cz cover optional.
+    const avatar = await uploadOnCloudinary(avatarLocalPath);
+    const coverImage = coverImageLocalPath
+        ? await uploadOnCloudinary(coverImageLocalPath)
+        : null;
 
     //Create new user
     const user = await User.create({
@@ -44,7 +43,7 @@ const userRegister = asyncHandler(async (req, res) => {
         email,
         userName,
         password,
-        avatar: avater?.url, //Avatar is required so no need to check for null value but coverImage is optional so we need to check for null value.
+        avatar: avatar?.url, //Avatar is required so no need to check for null value but coverImage is optional so we need to check for null value.
         coverImage: coverImage?.url || "",
     });
 
@@ -56,7 +55,7 @@ const userRegister = asyncHandler(async (req, res) => {
     }
 
     //Send response to frontend
-    res.status(201).json(new ApiResponse(true, 201, "User registered successfully", createdUser));
+    res.status(201).json(new ApiResponse(201, "User registered successfully", createdUser));
 
 });
 

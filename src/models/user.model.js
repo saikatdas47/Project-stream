@@ -54,24 +54,20 @@ const userSchema = new mongoose.Schema({
 // Add the aggregatePaginate plugin to the userSchema
 userSchema.plugin(aggregatePaginate);
 // Pre-save hook to hash the password before saving the user document. If the password field is not modified, it will skip hashing and proceed to the next middleware.
-userSchema.pre("save", async function (next) {
+userSchema.pre("save", async function () {
     if (!this.isModified("password")) {
-        return next();
+        return;
     }
-  try{
+
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
-    next();
-  } catch (error) {
-    next(error);    
-  }
 });
 
 
 
 
 userSchema.methods.comparePassword = async function (candidatePassword) {
-    return await bcrypt.compare(candidatePassword, this.password);
+    return bcrypt.compare(candidatePassword, this.password);
 };
 
 

@@ -28,5 +28,17 @@ app.use(cookieParser());
 import userRouter from "./routes/user.router.js";
 app.use("/api/v1/user/",userRouter);
 
+// Return API errors as JSON instead of Express's default HTML error page.
+app.use((error, req, res, next) => {
+  const statusCode = error?.statusCode || error?.http_code || error?.error?.http_code || 500;
+  const message = error?.message || error?.error?.message || "Internal server error";
+
+  res.status(statusCode).json({
+    success: false,
+    message,
+    errors: error?.errors || [],
+  });
+});
+
 
 export default app;
