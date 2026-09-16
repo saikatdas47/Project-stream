@@ -4,7 +4,7 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 
 const userSchema = new mongoose.Schema({
-    username: {
+    userName: {
         type: String,
         required: true,
         unique: true,
@@ -18,7 +18,7 @@ const userSchema = new mongoose.Schema({
         unique: true,
         lowercase: true,
     },
-    fullname: {
+    fullName: {
         type: String,
         required: true,
         trim: true,
@@ -51,6 +51,9 @@ const userSchema = new mongoose.Schema({
 
 
 
+// Add the aggregatePaginate plugin to the userSchema
+userSchema.plugin(aggregatePaginate);
+// Pre-save hook to hash the password before saving the user document. If the password field is not modified, it will skip hashing and proceed to the next middleware.
 userSchema.pre("save", async function (next) {
     if (!this.isModified("password")) {
         return next();
@@ -63,9 +66,16 @@ userSchema.pre("save", async function (next) {
     next(error);    
   }
 });
+
+
+
+
 userSchema.methods.comparePassword = async function (candidatePassword) {
     return await bcrypt.compare(candidatePassword, this.password);
 };
+
+
+
 
 userSchema.methods.generateAccessToken = function () {
     const payload = { 
@@ -82,6 +92,9 @@ userSchema.methods.generateAccessToken = function () {
     return accessToken;
 };
 
+
+
+
 userSchema.methods.generateRefreshToken = function () {
     const payload = { 
         _id: this._id,
@@ -93,6 +106,9 @@ userSchema.methods.generateRefreshToken = function () {
     });
     return refreshToken;
 };
+
+
+
 
 const User = mongoose.model("User", userSchema);
 
