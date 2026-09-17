@@ -1,13 +1,28 @@
 import asyncHandler from '../utils/asyncHandler.js';
 import User from '../models/user.model.js';
-import {ApiError} from '../utils/apiError.js';
-import {uploadOnCloudinary} from '../utils/cloudinary.js';
-import {ApiResponse} from '../utils/apiResponse.js';
+import { ApiError } from '../utils/apiError.js';
+import { uploadOnCloudinary } from '../utils/cloudinary.js';
+import { ApiResponse } from '../utils/apiResponse.js';
 
 
+
+const getAccessAndRefreshToken = async (user) => {
+    try {
+        const accessToken = user.generateAccessToken();
+        const refreshToken = user.generateRefreshToken();
+
+        //Store refresh token in database
+        user.refreshToken = refreshToken;
+        await user.save({ validateBeforeSave: false }); //validateBeforeSave: false mane user schema te je validation gulo ache shegulo validate korbe na. karon user schema te refreshToken field nai. tai validateBeforeSave: false use kora hoyeche.
+
+        return { accessToken, refreshToken };
+    } catch (error) {
+        throw new ApiError(500, "Error generating access and refresh token", error.message);
+    }
+};
 
 const userRegister = asyncHandler(async (req, res) => {
-    
+
     //Get user details from frontend 
     const { fullName, email, userName, password } = req.body;
 
@@ -50,7 +65,7 @@ const userRegister = asyncHandler(async (req, res) => {
 
     //user schema theke refresh token and password  remove kore db tea pathabo
     const createdUser = await User.findById(user._id).select("-password -refreshToken"); //-password -refreshToken mane ei field gulo db theke remove kore pathabo.
-    if(!createdUser) {
+    if (!createdUser) {
         throw new ApiError(500, "User not created");
     }
 
@@ -59,7 +74,83 @@ const userRegister = asyncHandler(async (req, res) => {
 
 });
 
+const userLogin = asyncHandler(async (req, res) => {
 
-export{
-    userRegister
+    const { email, userName, password } = req.body ?? {};
+
+    if ((!email && !userName)|| !password) {
+        throw new ApiError(400, "Email/username or password is required");
+    }
+
+    console.log("email:", email, "userName:", userName, "password:", password);
+
+
+
+
+    //Check if user exists
+    const user = await User.findOne({ $or: [ {email}, { userName }] });
+    if (!user) {
+        throw new ApiError(404, "User not found");
+    }
+
+    //Check if password is correct
+    const isPasswordCorrect = await user.comparePassword(password);
+    if (!isPasswordCorrect) {
+        throw new ApiError(401, "Invalid password");
+    }
+
+    //Generate refresh token and access token
+    const { accessToken, refreshToken } = await getAccessAndRefreshToken(user);
+
+    //Send response to frontend
+    const loggedInUser = await User.findById(user._id).select("-password -refreshToken"); //-password -refreshToken mane ei field gulo db theke remove kore pathabo.
+
+
+
+    const options = {
+        httpOnly: true,
+        secure: true, // Set secure flag in production
+    };
+
+    return res.status(200)
+    .cookie("accessToken", accessToken, options)
+    .cookie("refreshToken", refreshToken, options)
+    .json(new ApiResponse(200, {user: loggedInUser, accessToken, refreshToken }, "User logged in successfully"));
+
+
+});
+
+
+
+
+
+const userLogout = asyncHandler(async (req, res) => {
+    await User.findByIdAndUpdate(
+        req.user._id, 
+        { 
+            refreshToken: "" //Remove refresh token from database on logout
+        }, 
+        { 
+            new: true 
+        }); //new: true mane update howar porer user object return korbe. na hole update howar ageer user object return korbe.
+
+        //cookie theke access token and refresh token remove korbo
+        const options = {
+            httpOnly: true,
+            secure: true, // Set secure flag in production
+        };
+
+        return res.status(200)
+        .clearCookie("accessToken", options)
+        .clearCookie("refreshToken", options)
+        .json(new ApiResponse(200, null, "User logged out successfully"));
+
+});
+
+
+
+export {
+    userRegister,
+    userLogin,
+    userLogout
 }
