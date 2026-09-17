@@ -192,13 +192,113 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
     }
 });
 
+// soja banglai je sob method hit korte must loggin thaka lage oder secured route bole. ate auth.middlewire theke verifyiwt kora hoy sekhane req.user e user object ta pathano hoy.  so oikhan theke user._id diye user db theke shate contact korte pari. 
+const changePassword = asyncHandler(async (req, res) => {
+    const { oldPassword, newPassword } = req.body;
 
+    if (!oldPassword || !newPassword) {
+        throw new ApiError(400, "Old password and new password are required");
+    }
+
+    const user = await User.findById(req.user._id); // ai user ta verifyJWT middleware theke asche. karon change password route ta secured route. so user must be logged in to access this route. so verifyJWT middleware will check if the user is logged in or not. If the user is not logged in, it will throw an error and the user will not be able to access this route.
+
+    if (!user) {
+        throw new ApiError(404, "User not found");
+    }
+
+    const isOldPasswordCorrect = await user.comparePassword(oldPassword);
+    if (!isOldPasswordCorrect) {
+        throw new ApiError(401, "Old password is incorrect");
+    }
+
+    user.password = newPassword;
+    await user.save(); //save method will trigger the pre-save hook in user model to hash the new password before saving it to the database.
+
+    return res.status(200).json(new ApiResponse(200, null, "Password changed successfully"));
+});
+
+
+
+const getCurrentUser = asyncHandler(async (req, res) => {
+    //Jwt token theke user id ber kore user object ta database theke ber korbo. karon verifyJWT middleware already check koreche je user logged in ache kina. so user object ta req.user e ache. so amra req.user theke user object ta ber korbo.
+    return res.status(200).json(new ApiResponse(200, req.user, "Current user fetched successfully"));
+});
+
+
+const updateAccountDetails = asyncHandler(async (req, res) => {
+    const { fullName, email } = req.body;
+
+    if (!fullName && !email) {
+        throw new ApiError(400, "At least one field (fullName or email) is required to update");
+    }
+
+    const user = await User.findByIdAndUpdate(req.user._id,
+        {
+            $set: { fullName, email: email }
+        }).select("-password -refreshToken");
+
+
+    return res.status(200)
+        .json(new ApiResponse(200, user, "Account details updated successfully"));
+});
+
+
+
+//ata onno update er shate rakha hoy naikaron aikhane file handle korte hoy. 
+const updateUserAvatar = asyncHandler(async (req, res) => {
+    const avaterLocalPath = req.file?.path; //multer middleware theke file path ta asche. karon multer middleware already handle koreche file upload kora. so req.file e file object ta ache. so req.file.path e file path ta ache.
+    if (!avaterLocalPath) {
+        throw new ApiError(400, "Avatar image is required");
+    }
+
+    const avatar = await uploadOnCloudinary(avaterLocalPath);
+
+    if (!avatar?.url) {
+        throw new ApiError(500, "Error uploading avatar image");
+    }
+
+    const user = await User.findByIdAndUpdate(req.user._id,
+        {
+            $set: { avatar: avatar.url }
+        }).select("-password -refreshToken");
+
+    return res.status(200)
+        .json(new ApiResponse(200, user, "Avatar image updated successfully"));
+});
+
+
+const updateUserCoverImage = asyncHandler(async (req, res) => {
+    const coverImageLocalPath = req.file?.path; //multer middleware theke file path ta asche. karon multer middleware already handle koreche file upload kora. so req.file e file object ta ache. so req.file.path e file path ta ache.
+    if (!coverImageLocalPath) {
+        throw new ApiError(400, "Cover image is required");
+    }
+
+    const coverImage = await uploadOnCloudinary(coverImageLocalPath);
+
+    if (!coverImage?.url) {
+        throw new ApiError(500, "Error uploading cover image");
+    }
+
+    const user = await User.findByIdAndUpdate(req.user._id,
+        {
+            $set: { coverImage: coverImage.url }
+        }).select("-password -refreshToken");
+
+    return res.status(200)
+        .json(new ApiResponse(200, user, "Cover image updated successfully"));
+});
 
 
 
 export {
-        userRegister,
-        userLogin,
-        userLogout,
-        refreshAccessToken
-    }
+    userRegister,
+    userLogin,
+    userLogout,
+    refreshAccessToken,
+    changePassword,
+    getCurrentUser,
+    updateUserAvatar,
+    updateAccountDetails,
+    updateUserCoverImage,
+
+}
