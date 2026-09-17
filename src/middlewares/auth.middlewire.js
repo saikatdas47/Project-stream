@@ -3,7 +3,7 @@ import User from "../models/user.model.js";
 import asyncHandler from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/apiError.js';
 
- const verifyJWT = asyncHandler(async (req, res, next) => {
+ const verifyJWT = asyncHandler(async (req, _, next) => { // _ is used to ignore the second parameter (res) since we don't need it in this middleware
 
     try {
         const token = req.cookies?.accessToken ||
@@ -24,11 +24,14 @@ import { ApiError } from '../utils/apiError.js';
 
         req.user = user;
         next();
-        
+
     } catch (error) 
     { 
         throw new ApiError(401, error?.message || "Invalid token"); 
     };
 });
+
+
+
 
 export default verifyJWT;
