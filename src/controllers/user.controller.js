@@ -4,6 +4,7 @@ import { ApiError } from '../utils/apiError.js';
 import { uploadOnCloudinary, deleteFromCloudinary } from '../utils/cloudinary.js';
 import { ApiResponse } from '../utils/apiResponse.js';
 import JWT from "jsonwebtoken";
+import mongoose from "mongoose";
 
 
 const getAccessAndRefreshToken = async (user) => {
@@ -71,7 +72,7 @@ const userRegister = asyncHandler(async (req, res) => {
     }
 
     //Send response to frontend
-    res.status(201).json(new ApiResponse(201, "User registered successfully", createdUser));
+    res.status(201).json(new ApiResponse(201, createdUser, "User registered successfully"));
 
 });
 
@@ -123,7 +124,7 @@ const userLogin = asyncHandler(async (req, res) => {
 
     const options = {
         httpOnly: true,
-        secure: true, // Set secure flag in production
+        secure: process.env.NODE_ENV === "production",
     };
 
     return res.status(200)
@@ -148,7 +149,7 @@ const userLogout = asyncHandler(async (req, res) => {
     //cookie theke access token and refresh token remove korbo
     const options = {
         httpOnly: true,
-        secure: true, // Set secure flag in production
+        secure: process.env.NODE_ENV === "production",
     };
 
     return res.status(200)
@@ -160,34 +161,34 @@ const userLogout = asyncHandler(async (req, res) => {
 
 
 const refreshAccessToken = asyncHandler(async (req, res) => {
-    const inComingRefreshToken = req.cookies?.refreshToken || req.header("Authorization")?.replace("Bearer ", "") || req.body?.refreshToken; //replace because authorization header is in the format "Bearer <token>" we need to remove the "Bearer " part to get
-    if (!inComingRefreshToken) {
+    const incomingRefreshToken = req.cookies?.refreshToken || req.header("Authorization")?.replace("Bearer ", "") || req.body?.refreshToken; //replace because authorization header is in the format "Bearer <token>" we need to remove the "Bearer " part to get
+    if (!incomingRefreshToken) {
         throw new ApiError(400, "Refresh token is required");
     }
 
     try {
-        const decodedToken = JWT.verify(inComingRefreshToken, process.env.RefreshTokenSecret);
+        const decodedToken = JWT.verify(incomingRefreshToken, process.env.RefreshTokenSecret);
         const user = await User.findById(decodedToken._id);
 
         if (!user) {
             throw new ApiError(404, "User not found");
         }
 
-        if (user?.refreshToken !== inComingRefreshToken) {
+        if (user?.refreshToken !== incomingRefreshToken) {
             throw new ApiError(401, "Invalid refresh token");
         }
 
         const options = {
             httpOnly: true,
-            secure: true, // Set secure flag in production
+            secure: process.env.NODE_ENV === "production",
         };
 
-        const { accessToken, newrefreshToken } = await getAccessAndRefreshToken(user);
+        const { accessToken, refreshToken: newRefreshToken } = await getAccessAndRefreshToken(user);
 
         return res.status(200)
             .cookie("accessToken", accessToken, options)
-            .cookie("refreshToken", newrefreshToken, options)
-            .json(new ApiResponse(200, { accessToken, refreshToken: newrefreshToken }, "Access token refreshed successfully"));
+            .cookie("refreshToken", newRefreshToken, options)
+            .json(new ApiResponse(200, { accessToken, refreshToken: newRefreshToken }, "Access token refreshed successfully"));
 
     }
     catch (error) {
@@ -200,7 +201,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 
 
 
-// soja banglai je sob method hit korte must loggin thaka lage oder secured route bole. ate auth.middlewire theke verifyiwt kora hoy sekhane req.user e user object ta pathano hoy.  so oikhan theke user._id diye user db theke shate contact korte pari. 
+// soja banglai je sob method hit korte must login thaka lage oder secured route bole. ate auth.middleware theke verifyJWT kora hoy sekhane req.user e user object ta pathano hoy. so oikhan theke user._id diye user db er shathe contact korte pari.
 const changePassword = asyncHandler(async (req, res) => {
     const { oldPassword, newPassword } = req.body;
 
@@ -241,7 +242,11 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
 
     const user = await User.findByIdAndUpdate(req.user?._id,
         {
-            $set: { fullName, email: email }
+            $set: { fullName, email }
+        },
+        {
+            new: true,
+            runValidators: true
         }).select("-password -refreshToken");
 
 
@@ -255,22 +260,21 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
 
 
 
-    // Delete the old avatar from Cloudinary if it exists
-    if (req.user?.avatar) {
-        const publicId = req.user.avatar.split('/').pop().split('.')[0]; // Extract public ID from the URL
-        await deleteFromCloudinary(publicId);
-    }
-
-
-    const avaterLocalPath = req.file?.path; //multer middleware theke file path ta asche. karon multer middleware already handle koreche file upload kora. so req.file e file object ta ache. so req.file.path e file path ta ache.
-    if (!avaterLocalPath) {
+    const avatarLocalPath = req.file?.path; //multer middleware theke file path ta asche. karon multer middleware already handle koreche file upload kora. so req.file e file object ta ache. so req.file.path e file path ta ache.
+    if (!avatarLocalPath) {
         throw new ApiError(400, "Avatar image is required");
     }
 
-    const avatar = await uploadOnCloudinary(avaterLocalPath);
+    const avatar = await uploadOnCloudinary(avatarLocalPath);
 
     if (!avatar?.url) {
         throw new ApiError(500, "Error uploading avatar image");
+    }
+
+    // Delete the old avatar only after the new image uploads successfully.
+    if (req.user?.avatar) {
+        const publicId = req.user.avatar.split('/').pop().split('.')[0]; // Extract public ID from the URL
+        await deleteFromCloudinary(publicId);
     }
 
     const user = await User.findByIdAndUpdate(req.user?._id,
@@ -289,15 +293,6 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
 
 
 
-    // Delete the old cover image from Cloudinary if it exists
-    if (req.user?.coverImage) {
-        const publicId = req.user.coverImage.split('/').pop().split('.')[0]; // Extract public ID from the URL
-        await deleteFromCloudinary(publicId);
-    }
-
-
-
-
     const coverImageLocalPath = req.file?.path; //multer middleware theke file path ta asche. karon multer middleware already handle koreche file upload kora. so req.file e file object ta ache. so req.file.path e file path ta ache.
     if (!coverImageLocalPath) {
         throw new ApiError(400, "Cover image is required");
@@ -307,6 +302,12 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
 
     if (!coverImage?.url) {
         throw new ApiError(500, "Error uploading cover image");
+    }
+
+    // Delete the old cover image only after the new image uploads successfully.
+    if (req.user?.coverImage) {
+        const publicId = req.user.coverImage.split('/').pop().split('.')[0]; // Extract public ID from the URL
+        await deleteFromCloudinary(publicId);
     }
 
     const user = await User.findByIdAndUpdate(req.user?._id,
@@ -359,13 +360,13 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
         {
             $addFields: {
                 subscriberCount: { $size: "$subscribers" },
-                ChannelSubscribeTOCount: { $size: "$subscribeTo" }
-            },
-            isSubscribed: {
-                $cond: {
-                    if: { $in: [req.user?._id, "$subscribers.subscriber"] }, //check if the logged in user is subscribed to this channel or not.
-                    then: true,
-                    else: false
+                subscribedChannelCount: { $size: "$subscribeTo" },
+                isSubscribed: {
+                    $cond: {
+                        if: { $in: [req.user?._id, "$subscribers.subscriber"] }, //check if the logged in user is subscribed to this channel or not.
+                        then: true,
+                        else: false
+                    }
                 }
             }
         },
@@ -378,7 +379,7 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
                 avatar: 1,
                 coverImage: 1,
                 subscriberCount: 1,
-                ChannelSubscribeTOCount: 1,
+                subscribedChannelCount: 1,
                 isSubscribed: 1
             }
 

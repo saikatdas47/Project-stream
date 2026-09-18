@@ -1,7 +1,7 @@
 {
   "name": "backend",
   "version": "1.0.0",
-  "description": "Backend of streamers app",
+  "description": "Backend of the Stremars app",
   "keywords": [
     "JS",
     "Node"
