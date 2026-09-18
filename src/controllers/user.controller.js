@@ -1,7 +1,7 @@
 import asyncHandler from '../utils/asyncHandler.js';
 import User from '../models/user.model.js';
 import { ApiError } from '../utils/apiError.js';
-import { uploadOnCloudinary,deleteFromCloudinary } from '../utils/cloudinary.js';
+import { uploadOnCloudinary, deleteFromCloudinary } from '../utils/cloudinary.js';
 import { ApiResponse } from '../utils/apiResponse.js';
 import JWT from "jsonwebtoken";
 
@@ -255,7 +255,7 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
 
 
 
-     // Delete the old avatar from Cloudinary if it exists
+    // Delete the old avatar from Cloudinary if it exists
     if (req.user?.avatar) {
         const publicId = req.user.avatar.split('/').pop().split('.')[0]; // Extract public ID from the URL
         await deleteFromCloudinary(publicId);
@@ -272,7 +272,7 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
     if (!avatar?.url) {
         throw new ApiError(500, "Error uploading avatar image");
     }
-   
+
     const user = await User.findByIdAndUpdate(req.user?._id,
         {
             $set: { avatar: avatar.url }
@@ -287,7 +287,7 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
 
 const updateUserCoverImage = asyncHandler(async (req, res) => {
 
-    
+
 
     // Delete the old cover image from Cloudinary if it exists
     if (req.user?.coverImage) {
@@ -321,6 +321,151 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
 
 
 
+
+
+
+//profile dekhanor jonno 
+//username diye call korbo oi user er information with aggregation pipeline use kore subscriber count, subscription count soho alada table banabe. aikhane table e document bola hoy mongo db te
+
+
+const getUserChannelProfile = asyncHandler(async (req, res) => {
+    const { username } = req.params;
+
+    if (!username.trim()) { //trim mane username er age ba pore je kono space thakle sheta remove kore dibe. jodi username empty hoy tahole error throw korbe.
+        throw new ApiError(400, "Username is required");
+    }
+
+
+    const channel = await User.aggregate([
+        {
+            $match: { userName: username } //match mane je userName ta pathano hoyeche sheta match korbe. 
+        },
+        {
+            $lookup: {
+                from: "subscriptions", //subscriptions collection theke data niye asbe.
+                localField: "_id", //user collection er _id field ta use korbe.
+                foreignField: "channel", //subscriptions collection er channel field ta use korbe.
+                as: "subscribers" //chennal count korte parle subscriber count ber korbe. $size mane array er size ber korbe.
+            }
+        },
+        {
+            $lookup: {
+                from: "subscriptions", //subscriptions collection theke data niye asbe.
+                localField: "_id", //user collection er _id field ta use korbe.
+                foreignField: "subscriber", //subscriptions collection er subscriber field ta use korbe.
+                as: "subscribeTo" //subscriptions name e array banabe. jekhane oi user er subscriptions thakbe.
+            }
+        },
+        {
+            $addFields: {
+                subscriberCount: { $size: "$subscribers" },
+                ChannelSubscribeTOCount: { $size: "$subscribeTo" }
+            },
+            isSubscribed: {
+                $cond: {
+                    if: { $in: [req.user?._id, "$subscribers.subscriber"] }, //check if the logged in user is subscribed to this channel or not.
+                    then: true,
+                    else: false
+                }
+            }
+        },
+
+        {
+            $project: {
+                fullName: 1,
+                userName: 1,
+                email: 1,
+                avatar: 1,
+                coverImage: 1,
+                subscriberCount: 1,
+                ChannelSubscribeTOCount: 1,
+                isSubscribed: 1
+            }
+
+
+
+        }
+    ]);
+
+    if (!channel || channel.length === 0) {
+        throw new ApiError(404, "Channel not found");
+    }
+
+    return res.status(200)
+        .json(new ApiResponse(200, channel[0], "Channel profile fetched successfully"));
+});
+
+
+
+
+const getUserHistory = asyncHandler(async (req, res) => {
+
+    // Get the user's history
+    const user = await User.aggregate([
+        {
+            $match: {
+                _id: new mongoose.Types.ObjectId(req.user?._id)
+             //mongoose.Types.ObjectId mane examle _id="64b8f8f8f8f8f8f8f8f8f8f"  but mongo db tea objectID('64b8f8f8f8f8f8f8f8f8f8f') format e thake. 
+            //so mongoose.Types.ObjectId use kore objectID format e convert korte hobe.
+            }
+        },
+        {
+            $lookup: {
+                from: "videos", //videos collection theke data niye asbe.
+                localField: "watchHistory", //user collection er watchHistory.video field ta use korbe.
+                foreignField: "_id", //videos collection er _id field ta use korbe.
+                as: "watchHistory",//watchHistory name e array banabe. jekhane oi user er watch history thakbe.
+                pipeline: [
+                    {
+                        $lookup: {
+                            from: "users", //users collection theke data niye asbe.
+                            localField: "owner", //videos collection er owner field ta use korbe.
+                            foreignField: "_id", //users collection er _id field ta use korbe.
+                            as: "owner",
+                            pipeline: [
+                                {
+                                    $project: {
+                                        fullName: 1,
+                                        userName: 1,
+                                        avatar: 1,
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                    ,//array to object
+                    {
+                        $addFields: {
+                            owner: {
+                                $first: "$owner" //array theke first element ta ber korbe. karon owner field ta array hisebe asche. so array to object korte hobe.
+                            }
+                        }
+                    }
+
+                ]
+
+            }
+        }
+    ])
+
+    if (!user || user.length === 0) {
+        throw new ApiError(404, "User not found");
+    }
+  
+    return res.status(200)
+        .json(new ApiResponse(200, user[0].watchHistory, "User history fetched successfully"));
+});
+
+
+
+
+
+
+
+
+
+
+
 export {
     userRegister,
     userLogin,
@@ -331,5 +476,7 @@ export {
     updateUserAvatar,
     updateAccountDetails,
     updateUserCoverImage,
+    getUserHistory,
+    getUserChannelProfile
 
 }
