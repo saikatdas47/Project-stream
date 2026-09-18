@@ -1,7 +1,7 @@
 import asyncHandler from '../utils/asyncHandler.js';
 import User from '../models/user.model.js';
 import { ApiError } from '../utils/apiError.js';
-import { uploadOnCloudinary } from '../utils/cloudinary.js';
+import { uploadOnCloudinary,deleteFromCloudinary } from '../utils/cloudinary.js';
 import { ApiResponse } from '../utils/apiResponse.js';
 import JWT from "jsonwebtoken";
 
@@ -20,6 +20,7 @@ const getAccessAndRefreshToken = async (user) => {
         throw new ApiError(500, "Error generating access and refresh token", error.message);
     }
 };
+
 
 const userRegister = asyncHandler(async (req, res) => {
 
@@ -73,6 +74,7 @@ const userRegister = asyncHandler(async (req, res) => {
     res.status(201).json(new ApiResponse(201, "User registered successfully", createdUser));
 
 });
+
 
 const userLogin = asyncHandler(async (req, res) => {
 
@@ -131,6 +133,7 @@ const userLogin = asyncHandler(async (req, res) => {
 
 
 });
+
 
 const userLogout = asyncHandler(async (req, res) => {
     await User.findByIdAndUpdate(
@@ -192,6 +195,11 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
     }
 });
 
+
+
+
+
+
 // soja banglai je sob method hit korte must loggin thaka lage oder secured route bole. ate auth.middlewire theke verifyiwt kora hoy sekhane req.user e user object ta pathano hoy.  so oikhan theke user._id diye user db theke shate contact korte pari. 
 const changePassword = asyncHandler(async (req, res) => {
     const { oldPassword, newPassword } = req.body;
@@ -200,7 +208,7 @@ const changePassword = asyncHandler(async (req, res) => {
         throw new ApiError(400, "Old password and new password are required");
     }
 
-    const user = await User.findById(req.user._id); // ai user ta verifyJWT middleware theke asche. karon change password route ta secured route. so user must be logged in to access this route. so verifyJWT middleware will check if the user is logged in or not. If the user is not logged in, it will throw an error and the user will not be able to access this route.
+    const user = await User.findById(req.user?._id); // ai user ta verifyJWT middleware theke asche. karon change password route ta secured route. so user must be logged in to access this route. so verifyJWT middleware will check if the user is logged in or not. If the user is not logged in, it will throw an error and the user will not be able to access this route.
 
     if (!user) {
         throw new ApiError(404, "User not found");
@@ -218,7 +226,6 @@ const changePassword = asyncHandler(async (req, res) => {
 });
 
 
-
 const getCurrentUser = asyncHandler(async (req, res) => {
     //Jwt token theke user id ber kore user object ta database theke ber korbo. karon verifyJWT middleware already check koreche je user logged in ache kina. so user object ta req.user e ache. so amra req.user theke user object ta ber korbo.
     return res.status(200).json(new ApiResponse(200, req.user, "Current user fetched successfully"));
@@ -232,7 +239,7 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
         throw new ApiError(400, "At least one field (fullName or email) is required to update");
     }
 
-    const user = await User.findByIdAndUpdate(req.user._id,
+    const user = await User.findByIdAndUpdate(req.user?._id,
         {
             $set: { fullName, email: email }
         }).select("-password -refreshToken");
@@ -243,9 +250,18 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
 });
 
 
-
 //ata onno update er shate rakha hoy naikaron aikhane file handle korte hoy. 
 const updateUserAvatar = asyncHandler(async (req, res) => {
+
+
+
+     // Delete the old avatar from Cloudinary if it exists
+    if (req.user?.avatar) {
+        const publicId = req.user.avatar.split('/').pop().split('.')[0]; // Extract public ID from the URL
+        await deleteFromCloudinary(publicId);
+    }
+
+
     const avaterLocalPath = req.file?.path; //multer middleware theke file path ta asche. karon multer middleware already handle koreche file upload kora. so req.file e file object ta ache. so req.file.path e file path ta ache.
     if (!avaterLocalPath) {
         throw new ApiError(400, "Avatar image is required");
@@ -256,11 +272,13 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
     if (!avatar?.url) {
         throw new ApiError(500, "Error uploading avatar image");
     }
-
-    const user = await User.findByIdAndUpdate(req.user._id,
+   
+    const user = await User.findByIdAndUpdate(req.user?._id,
         {
             $set: { avatar: avatar.url }
         }).select("-password -refreshToken");
+
+
 
     return res.status(200)
         .json(new ApiResponse(200, user, "Avatar image updated successfully"));
@@ -268,6 +286,18 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
 
 
 const updateUserCoverImage = asyncHandler(async (req, res) => {
+
+    
+
+    // Delete the old cover image from Cloudinary if it exists
+    if (req.user?.coverImage) {
+        const publicId = req.user.coverImage.split('/').pop().split('.')[0]; // Extract public ID from the URL
+        await deleteFromCloudinary(publicId);
+    }
+
+
+
+
     const coverImageLocalPath = req.file?.path; //multer middleware theke file path ta asche. karon multer middleware already handle koreche file upload kora. so req.file e file object ta ache. so req.file.path e file path ta ache.
     if (!coverImageLocalPath) {
         throw new ApiError(400, "Cover image is required");
@@ -279,7 +309,7 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
         throw new ApiError(500, "Error uploading cover image");
     }
 
-    const user = await User.findByIdAndUpdate(req.user._id,
+    const user = await User.findByIdAndUpdate(req.user?._id,
         {
             $set: { coverImage: coverImage.url }
         }).select("-password -refreshToken");
@@ -287,6 +317,7 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
     return res.status(200)
         .json(new ApiResponse(200, user, "Cover image updated successfully"));
 });
+
 
 
 
