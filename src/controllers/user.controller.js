@@ -401,7 +401,7 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
 
 const getUserHistory = asyncHandler(async (req, res) => {
 
-    // Get the user's history
+    // Get the user's history //nasted aggregation pipeline use kore user er history ber korbo. karon user er history te video er information thakbe. abar oi video er owner er info User collection theke ber korte hobe. so nasted aggregation pipeline use korte hobe.
     const user = await User.aggregate([
         {
             $match: {
